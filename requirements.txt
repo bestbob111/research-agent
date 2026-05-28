@@ -1,0 +1,9 @@
+pymupdf
+chromadb
+requests
+pandas
+tqdm
+python-dotenv
+openai
+pyyaml
+pytest

@@ -1,0 +1,20 @@
+ollama_base_url: "http://localhost:11434"
+chat_model: "qwen3:14b"
+embedding_model: "bge-m3"
+
+data_dir: "/mnt/bigdata/research-agent"
+papers_dir: "/mnt/bigdata/research-agent/papers"
+texts_dir: "/mnt/bigdata/research-agent/texts"
+chroma_dir: "/mnt/bigdata/research-agent/chroma"
+metadata_dir: "/mnt/bigdata/research-agent/metadata"
+reports_dir: "/mnt/bigdata/research-agent/reports"
+downloads_dir: "/mnt/bigdata/research-agent/downloads"
+zotero_dir: "/mnt/bigdata/research-agent/zotero"
+logs_dir: "/mnt/bigdata/research-agent/logs"
+
+collection_name: "research_papers"
+chunk_size: 1200
+chunk_overlap: 200
+
+deepseek_base_url: "https://api.deepseek.com"
+deepseek_model: "deepseek-chat"
