@@ -79,6 +79,21 @@ python scripts/ingest_pdfs.py
 /mnt/bigdata/research-agent/texts
 ```
 
+## Ollama 本地模型检查
+
+需要先安装 Ollama，并拉取默认模型：
+
+```bash
+ollama pull qwen3:14b
+ollama pull bge-m3
+```
+
+运行检查：
+
+```bash
+python scripts/check_ollama.py
+```
+
 运行测试：
 
 ```bash
