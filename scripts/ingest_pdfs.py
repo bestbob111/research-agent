@@ -7,6 +7,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from research_agent.config import load_config
+from research_agent.ingest_metadata import record_ingested_metadata
 from research_agent.pdf_parser import extract_pdfs_to_texts_with_report
 
 
@@ -33,6 +34,8 @@ def main() -> None:
     print(f"generated txt: {len(report['success'])}")
     for path in report["success"]:
         print(path)
+    metadata_count = record_ingested_metadata(config, report["success"])
+    print(f"metadata records updated: {metadata_count}")
     print(f"failed PDFs: {len(report['failures'])}")
     for failure in report["failures"]:
         print(f"{failure['pdf']}: {failure['error']}")

@@ -8,6 +8,8 @@ from research_agent.pdf_parser import (
     extract_pdfs_to_texts,
     extract_pdfs_to_texts_with_report,
 )
+from research_agent.metadata_db import list_papers
+from research_agent.ingest_metadata import record_ingested_metadata
 
 
 def test_extract_pdfs_to_texts_creates_missing_papers_dir(tmp_path):
@@ -75,3 +77,28 @@ def test_extract_pdfs_to_texts_with_report_records_success_and_failure(
     assert report["total"] == 2
     assert report["success"] == [texts_dir / "good.txt"]
     assert report["failures"] == [{"pdf": str(bad_pdf), "error": "broken pdf"}]
+
+
+def test_record_ingested_metadata_writes_sqlite(tmp_path):
+    papers_dir = tmp_path / "papers"
+    texts_dir = tmp_path / "texts"
+    metadata_dir = tmp_path / "metadata"
+    papers_dir.mkdir()
+    texts_dir.mkdir()
+    pdf_path = papers_dir / "paper.pdf"
+    txt_path = texts_dir / "paper.txt"
+    pdf_path.write_bytes(b"%PDF")
+    txt_path.write_text("content", encoding="utf-8")
+    config = {
+        "papers_dir": str(papers_dir),
+        "metadata_dir": str(metadata_dir),
+    }
+
+    count = record_ingested_metadata(config, [txt_path])
+
+    papers = list_papers(metadata_dir / "papers.sqlite")
+    assert count == 1
+    assert papers[0]["title"] == "paper"
+    assert papers[0]["source"] == "local_pdf"
+    assert papers[0]["file_path"] == str(pdf_path.resolve())
+    assert papers[0]["text_path"] == str(txt_path.resolve())

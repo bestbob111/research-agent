@@ -147,6 +147,34 @@ python scripts/ask_local.py "你的问题"
 
 `query_index.py` 只显示相似片段；`ask_local.py` 会调用 qwen3:14b 生成基于证据的回答。回答质量取决于 PDF 文本提取质量和索引质量。
 
+## 文献元数据管理
+
+`ingest_pdfs.py` 成功生成 txt 后，会自动把基础文献信息写入 `/mnt/bigdata/research-agent/metadata/papers.sqlite`。
+
+查看当前文献列表：
+
+```bash
+python scripts/list_papers.py
+```
+
+后续 RAG 证据来源会逐步显示标题、作者、年份等文献信息。
+
+## DeepSeek 复杂综述
+
+在 `.env` 中配置：
+
+```bash
+DEEPSEEK_API_KEY=你的 API key
+```
+
+先构建本地索引，然后运行：
+
+```bash
+python scripts/review_with_deepseek.py "请总结这些文献中 SERF 原子磁强计的主要噪声来源和抑制方法"
+```
+
+本地只把检索到的相关证据片段发给 DeepSeek，不会把整个文献库全部上传。Markdown 报告会保存到 `/mnt/bigdata/research-agent/reports`。
+
 故障处理：
 
 - 如果某些 PDF 解析出的 txt 为空，构建索引时会自动跳过。

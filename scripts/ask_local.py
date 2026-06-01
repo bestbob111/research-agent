@@ -33,8 +33,14 @@ def main() -> None:
     print(result["answer"])
     print("证据来源:")
     for source in result["sources"]:
+        title = source.get("title") or source.get("source", "")
+        authors = source.get("authors") or ""
+        year = source.get("year") or ""
         print(
-            f"- source={source.get('source', '')}, "
+            f"- title={title}, "
+            f"authors={authors}, "
+            f"year={year}, "
+            f"source={source.get('source', '')}, "
             f"chunk_id={source.get('chunk_id', '')}, "
             f"distance={source.get('distance')}"
         )
