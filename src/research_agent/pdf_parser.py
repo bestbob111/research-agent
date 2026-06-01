@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Callable
 
 import fitz
 
@@ -28,23 +29,40 @@ def extract_pdf_text(pdf_path: Path) -> str:
 
 def extract_pdfs_to_texts(papers_dir: Path, texts_dir: Path) -> list[Path]:
     """Extract all PDFs in papers_dir to UTF-8 text files in texts_dir."""
+    report = extract_pdfs_to_texts_with_report(papers_dir, texts_dir)
+    for failure in report["failures"]:
+        print(f"Failed to extract {failure['pdf']}: {failure['error']}")
+    return report["success"]
+
+
+def extract_pdfs_to_texts_with_report(
+    papers_dir: Path,
+    texts_dir: Path,
+    progress_callback: Callable[[int, int, Path], None] | None = None,
+) -> dict:
+    """Extract PDFs and return success/failure details for observability."""
     papers_path = Path(papers_dir)
     texts_path = Path(texts_dir)
 
     if not papers_path.exists():
         papers_path.mkdir(parents=True, exist_ok=True)
-        return []
+        return {"success": [], "failures": [], "total": 0}
 
     texts_path.mkdir(parents=True, exist_ok=True)
 
+    pdf_paths = sorted(papers_path.glob("*.pdf"))
     output_paths = []
-    for pdf_path in sorted(papers_path.glob("*.pdf")):
+    failures = []
+
+    for index, pdf_path in enumerate(pdf_paths, start=1):
+        if progress_callback:
+            progress_callback(index, len(pdf_paths), pdf_path)
         try:
             text = extract_pdf_text(pdf_path)
             output_path = texts_path / f"{pdf_path.stem}.txt"
             output_path.write_text(text, encoding="utf-8")
             output_paths.append(output_path)
         except Exception as exc:
-            print(f"Failed to extract {pdf_path}: {exc}")
+            failures.append({"pdf": str(pdf_path), "error": str(exc)})
 
-    return output_paths
+    return {"success": output_paths, "failures": failures, "total": len(pdf_paths)}

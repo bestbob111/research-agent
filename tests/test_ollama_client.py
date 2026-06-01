@@ -5,9 +5,10 @@ from research_agent.ollama_client import OllamaClient
 
 
 class FakeResponse:
-    def __init__(self, data, status_code=200):
+    def __init__(self, data, status_code=200, text=""):
         self.data = data
         self.status_code = status_code
+        self.text = text
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -66,6 +67,28 @@ def test_embed_invalid_response_raises_runtime_error(monkeypatch):
         client.embed("hello")
 
 
+def test_embed_nan_vector_raises_invalid_embedding_runtime_error(monkeypatch):
+    def fake_post(url, json, timeout):
+        return FakeResponse({"embeddings": [[0.1, float("nan")]]})
+
+    monkeypatch.setattr("requests.post", fake_post)
+    client = OllamaClient("http://localhost:11434", "qwen3:14b", "bge-m3")
+
+    with pytest.raises(RuntimeError, match="invalid embedding"):
+        client.embed("hello")
+
+
+def test_embed_inf_vector_raises_invalid_embedding_runtime_error(monkeypatch):
+    def fake_post(url, json, timeout):
+        return FakeResponse({"embeddings": [[0.1, float("inf")]]})
+
+    monkeypatch.setattr("requests.post", fake_post)
+    client = OllamaClient("http://localhost:11434", "qwen3:14b", "bge-m3")
+
+    with pytest.raises(RuntimeError, match="invalid embedding"):
+        client.embed("hello")
+
+
 def test_chat_request_messages(monkeypatch):
     calls = []
 
@@ -120,3 +143,18 @@ def test_http_exception_becomes_runtime_error(monkeypatch):
 
     with pytest.raises(RuntimeError, match="Ollama"):
         client.chat("hello")
+
+
+def test_http_500_runtime_error_includes_response_text(monkeypatch):
+    def fake_post(url, json, timeout):
+        return FakeResponse(
+            {"error": "server"},
+            status_code=500,
+            text="model crashed while embedding",
+        )
+
+    monkeypatch.setattr("requests.post", fake_post)
+    client = OllamaClient("http://localhost:11434", "qwen3:14b", "bge-m3")
+
+    with pytest.raises(RuntimeError, match="model crashed while embedding"):
+        client.embed("hello")

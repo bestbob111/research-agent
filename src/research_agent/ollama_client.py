@@ -1,3 +1,4 @@
+import math
 from typing import Any
 
 import requests
@@ -31,7 +32,11 @@ class OllamaClient:
         ):
             raise RuntimeError("Ollama embed response missing valid embeddings")
 
-        return embeddings[0]
+        embedding = embeddings[0]
+        if not _is_valid_embedding(embedding):
+            raise RuntimeError("Ollama embed response contains invalid embedding")
+
+        return embedding
 
     def chat(self, prompt: str, system: str | None = None) -> str:
         if not prompt.strip():
@@ -63,7 +68,11 @@ class OllamaClient:
         url = f"{self.base_url}{path}"
         try:
             response = requests.post(url, json=payload, timeout=self.timeout)
-            response.raise_for_status()
+            if not 200 <= response.status_code < 300:
+                body = getattr(response, "text", "")[:300]
+                raise RuntimeError(
+                    f"Ollama request failed: HTTP {response.status_code} for {url}: {body}"
+                )
             data = response.json()
         except requests.RequestException as exc:
             raise RuntimeError(f"Ollama request failed: {exc}") from exc
@@ -74,3 +83,14 @@ class OllamaClient:
             raise RuntimeError("Ollama response JSON must be an object")
 
         return data
+
+
+def _is_valid_embedding(embedding: Any) -> bool:
+    if not isinstance(embedding, list) or not embedding:
+        return False
+    return all(
+        not isinstance(value, bool)
+        and isinstance(value, (int, float))
+        and math.isfinite(value)
+        for value in embedding
+    )

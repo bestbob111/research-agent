@@ -94,6 +94,77 @@ ollama pull bge-m3
 python scripts/check_ollama.py
 ```
 
+## 构建向量索引
+
+完整流程：
+
+1. 把 PDF 放到 `/mnt/bigdata/research-agent/papers`
+2. 提取 PDF 文本：
+
+```bash
+python scripts/ingest_pdfs.py
+```
+
+3. 构建索引：
+
+```bash
+python scripts/build_index.py --reset --limit 1
+```
+
+4. 查询索引：
+
+```bash
+python scripts/query_index.py "你的问题"
+```
+
+## 本地 RAG 问答
+
+完整流程：
+
+1. 提取 PDF 文本：
+
+```bash
+python scripts/ingest_pdfs.py
+```
+
+2. 构建向量索引：
+
+```bash
+python scripts/build_index.py --reset --max-chars-per-embed 1000
+```
+
+3. 查看相似片段：
+
+```bash
+python scripts/query_index.py "你的问题"
+```
+
+4. 生成基于证据的回答：
+
+```bash
+python scripts/ask_local.py "你的问题"
+```
+
+`query_index.py` 只显示相似片段；`ask_local.py` 会调用 qwen3:14b 生成基于证据的回答。回答质量取决于 PDF 文本提取质量和索引质量。
+
+故障处理：
+
+- 如果某些 PDF 解析出的 txt 为空，构建索引时会自动跳过。
+- 如果某些 chunk embedding 失败，会记录到 `/mnt/bigdata/research-agent/metadata/index_failures.json`。
+- 如果某些 chunk 触发 NaN/inf embedding，会被跳过并记录到 `/mnt/bigdata/research-agent/metadata/index_failures.json`。
+- 少量失败 chunk 通常可以接受。
+- 推荐先运行小批量检查：
+
+```bash
+python scripts/build_index.py --reset --limit 1
+```
+
+- 如遇到 Ollama 500，可尝试降低单次 embedding 文本长度：
+
+```bash
+python scripts/build_index.py --reset --max-chars-per-embed 1000
+```
+
 运行测试：
 
 ```bash

@@ -3,7 +3,11 @@ from pathlib import Path
 import pytest
 
 from research_agent import pdf_parser
-from research_agent.pdf_parser import extract_pdf_text, extract_pdfs_to_texts
+from research_agent.pdf_parser import (
+    extract_pdf_text,
+    extract_pdfs_to_texts,
+    extract_pdfs_to_texts_with_report,
+)
 
 
 def test_extract_pdfs_to_texts_creates_missing_papers_dir(tmp_path):
@@ -45,3 +49,29 @@ def test_extract_pdfs_to_texts_writes_txt_files(tmp_path, monkeypatch):
     assert (texts_dir / "paper.txt").read_text(encoding="utf-8") == (
         "--- Page 1 ---\ncontent"
     )
+
+
+def test_extract_pdfs_to_texts_with_report_records_success_and_failure(
+    tmp_path,
+    monkeypatch,
+):
+    papers_dir = tmp_path / "papers"
+    texts_dir = tmp_path / "texts"
+    papers_dir.mkdir()
+    good_pdf = papers_dir / "good.pdf"
+    bad_pdf = papers_dir / "bad.pdf"
+    good_pdf.write_bytes(b"%PDF good")
+    bad_pdf.write_bytes(b"%PDF bad")
+
+    def fake_extract_pdf_text(path: Path) -> str:
+        if path == bad_pdf:
+            raise RuntimeError("broken pdf")
+        return "--- Page 1 ---\ncontent"
+
+    monkeypatch.setattr(pdf_parser, "extract_pdf_text", fake_extract_pdf_text)
+
+    report = extract_pdfs_to_texts_with_report(papers_dir, texts_dir)
+
+    assert report["total"] == 2
+    assert report["success"] == [texts_dir / "good.txt"]
+    assert report["failures"] == [{"pdf": str(bad_pdf), "error": "broken pdf"}]
