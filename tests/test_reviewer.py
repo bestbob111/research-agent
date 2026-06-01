@@ -53,6 +53,7 @@ def test_review_without_evidence_returns_message(tmp_path, monkeypatch):
 
     assert "未在当前文献库中检索到足够相关的证据" in result["review"]
     assert result["sources"] == []
+    assert result["metadata"]["evidence_count"] == 0
 
 
 def test_review_prompt_contains_evidence_marker(tmp_path, monkeypatch):
@@ -103,3 +104,37 @@ def test_review_returns_sources(tmp_path, monkeypatch):
             "id": "doc::chunk_0",
         }
     ]
+
+
+def test_review_returns_metadata_counts(tmp_path, monkeypatch):
+    setup_fakes(
+        monkeypatch,
+        [
+            {
+                "id": "doc1::chunk_0",
+                "text": "证据文本 1",
+                "metadata": {"source": "paper1.txt", "chunk_id": "doc1::chunk_0"},
+                "distance": 0.3,
+            },
+            {
+                "id": "doc1::chunk_1",
+                "text": "证据文本 2",
+                "metadata": {"source": "paper1.txt", "chunk_id": "doc1::chunk_1"},
+                "distance": 0.4,
+            },
+            {
+                "id": "doc2::chunk_0",
+                "text": "证据文本 3",
+                "metadata": {"source": "paper2.txt", "chunk_id": "doc2::chunk_0"},
+                "distance": 0.5,
+            },
+        ],
+    )
+    evidence_reviewer = EvidenceReviewer(make_config(tmp_path))
+
+    result = evidence_reviewer.review_with_deepseek("问题", n_results=3)
+
+    assert result["metadata"]["model"] == "deepseek-chat"
+    assert result["metadata"]["n_results"] == 3
+    assert result["metadata"]["evidence_count"] == 3
+    assert result["metadata"]["unique_sources_count"] == 2

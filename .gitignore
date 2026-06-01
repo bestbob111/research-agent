@@ -9,3 +9,4 @@ data/
 reports/
 *.sqlite
 *.db
+*.egg-info/

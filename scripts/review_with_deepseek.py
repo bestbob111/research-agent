@@ -9,6 +9,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from research_agent.config import load_config
+from research_agent.report_generator import generate_review_report
 from research_agent.reviewer import EvidenceReviewer
 
 
@@ -46,11 +47,13 @@ def main() -> None:
         )
 
     reports_dir = Path(config["reports_dir"])
-    reports_dir.mkdir(parents=True, exist_ok=True)
     report_path = _resolve_report_path(reports_dir, args.output)
-    report_path.write_text(
-        _format_report(question, result["review"], result["sources"]),
-        encoding="utf-8",
+    generate_review_report(
+        question=question,
+        review=result["review"],
+        sources=result["sources"],
+        output_path=report_path,
+        metadata=result.get("metadata"),
     )
     print(f"报告已保存: {report_path}")
 
@@ -60,35 +63,9 @@ def _resolve_report_path(reports_dir: Path, output: str | None) -> Path:
         path = Path(output)
         if path.suffix != ".md":
             path = path.with_suffix(".md")
-        return reports_dir / path.name
+        return path if path.is_absolute() else reports_dir / path
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return reports_dir / f"review_{timestamp}.md"
-
-
-def _format_report(question: str, review: str, sources: list[dict]) -> str:
-    lines = [
-        "# DeepSeek 综述报告",
-        "",
-        "## 问题",
-        "",
-        question,
-        "",
-        "## 回答",
-        "",
-        review,
-        "",
-        "## 证据来源",
-        "",
-    ]
-    for source in sources:
-        lines.append(
-            "- "
-            f"source={source.get('source', '')}, "
-            f"chunk_id={source.get('chunk_id', '')}, "
-            f"distance={source.get('distance')}"
-        )
-    lines.append("")
-    return "\n".join(lines)
 
 
 if __name__ == "__main__":

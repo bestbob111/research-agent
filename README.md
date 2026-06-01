@@ -59,6 +59,30 @@ cp .env.example .env
 python scripts/check_paths.py
 ```
 
+## 统一 CLI 使用方式
+
+安装开发模式：
+
+```bash
+pip install -e .
+```
+
+常用命令：
+
+```bash
+research-agent status
+research-agent ingest
+research-agent index --reset --max-chars-per-embed 1000
+research-agent query "你的问题"
+research-agent ask "你的问题"
+research-agent review "你的综述问题"
+research-agent papers list
+research-agent papers list --limit 30
+research-agent papers list --offset 30 --limit 30
+```
+
+如果只是想看前几条文献，优先使用 `--limit`，而不是管道接 `head`。
+
 ## PDF 文本提取
 
 把 PDF 文件放到：
@@ -173,7 +197,13 @@ DEEPSEEK_API_KEY=你的 API key
 python scripts/review_with_deepseek.py "请总结这些文献中 SERF 原子磁强计的主要噪声来源和抑制方法"
 ```
 
-本地只把检索到的相关证据片段发给 DeepSeek，不会把整个文献库全部上传。Markdown 报告会保存到 `/mnt/bigdata/research-agent/reports`。
+也可以使用统一 CLI：
+
+```bash
+research-agent review "请总结 SERF 原子磁强计的主要噪声来源和抑制方法"
+```
+
+本地只把检索到的相关证据片段发给 DeepSeek，不会把整个文献库全部上传。review 会自动保存 Markdown 报告，默认位置是 `/mnt/bigdata/research-agent/reports`。报告包含研究问题、生成信息、综合分析、证据来源和使用注意事项。
 
 故障处理：
 

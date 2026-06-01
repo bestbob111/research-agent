@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
 import yaml
 
 
@@ -22,6 +23,7 @@ DIRECTORY_KEYS = (
 
 def load_config(config_path: str | None = None) -> dict[str, Any]:
     """Load project configuration and ensure runtime data directories exist."""
+    load_project_dotenv()
     path = Path(config_path).expanduser() if config_path else DEFAULT_CONFIG_PATH
 
     if not path.exists():
@@ -40,3 +42,11 @@ def load_config(config_path: str | None = None) -> dict[str, Any]:
         Path(str(directory)).expanduser().mkdir(parents=True, exist_ok=True)
 
     return config
+
+
+def load_project_dotenv() -> bool:
+    """Load .env from the project root without using dotenv's search behavior."""
+    env_path = PROJECT_ROOT / ".env"
+    if not env_path.exists():
+        return False
+    return load_dotenv(dotenv_path=env_path, override=True)
