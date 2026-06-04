@@ -72,6 +72,7 @@ pip install -e .
 ```bash
 research-agent status
 research-agent ingest
+research-agent import-downloads --source arxiv
 research-agent index --reset --max-chars-per-embed 1000
 research-agent query "你的问题"
 research-agent ask "你的问题"
@@ -182,6 +183,67 @@ python scripts/list_papers.py
 ```
 
 后续 RAG 证据来源会逐步显示标题、作者、年份等文献信息。
+
+## 研究主题管理
+
+```bash
+research-agent topic create "SERF 原子磁强计噪声抑制" --description "调研 SERF 磁强计的噪声来源、抑制方法和应用"
+research-agent topic list
+research-agent topic show 1
+research-agent topic plan 1
+research-agent topic plan 1 --force
+research-agent topic plan 1 --deepseek --n-evidence 15
+research-agent topic report 1
+research-agent topic report 1 --local
+research-agent topic report 1 --n-evidence 30
+```
+
+topic 功能用于长期管理研究方向，后续可与检索计划、报告和文献筛选关联。`topic create` 只创建研究主题工作区；`topic plan` 会结合本地文献库检索结果生成研究计划，默认使用本地 qwen3:14b，`--deepseek` 可用于生成更高质量计划。计划文件保存在 `metadata/topics/topic_<id>_plan.md`。后续网页检索、知网检索会基于这个计划展开。
+
+`topic report` 会基于 topic plan 和本地文献库证据生成正式调研报告，默认使用 DeepSeek，`--local` 可完全本地生成。报告保存在 `reports_dir`，topic 首页会记录最新报告路径。
+
+## 问题探索模式
+
+```bash
+research-agent explore "SERF 原子磁强计的主要噪声来源有哪些，分别如何抑制？"
+research-agent explore "SERF 原子磁强计的主要噪声来源有哪些，分别如何抑制？" --local
+research-agent explore "SERF 原子磁强计的主要噪声来源有哪些，分别如何抑制？" --topic-id 1 --rounds 2 --n-evidence 10
+research-agent explore "SERF 原子磁强计的主要噪声来源有哪些，分别如何抑制？" --assess-with-deepseek
+research-agent explore list
+research-agent explore show explore_YYYYmmdd_HHMMSS
+research-agent explore continue explore_YYYYmmdd_HHMMSS --local
+```
+
+`explore` 会主动拆解问题，多次检索本地文献库，并保存 Markdown 报告和 JSON 结构化记录。当前版本只探索本地文献库，不会自动访问知网或网页；后续网页检索会基于 explore 生成的 gaps/search_queries 扩展。
+
+`explore list` 查看历史探索，`explore show` 查看某次探索摘要，`explore continue` 会基于上一次的 gaps/search_queries 继续探索。
+
+explore 报告会包含证据质量评估，`recommended_reading` 可作为精读清单。默认使用本地模型做证据评估，`--assess-with-deepseek` 可用 DeepSeek 做更严格评估。
+
+## arXiv 开放文献检索
+
+```bash
+research-agent arxiv search "SERF atomic magnetometer noise" --max-results 20
+research-agent arxiv search "SERF atomic magnetometer noise" --max-results 20 --download --download-limit 3
+```
+
+arXiv search 只使用公开 API。检索结果会保存到 `metadata_dir`，并导入 `papers.sqlite`。下载的 PDF 放到 `downloads_dir/arxiv`。下载后如需纳入本地 RAG，需要把 PDF 导入 `papers_dir` 后运行 ingest/index。
+
+## 导入下载 PDF
+
+```bash
+research-agent arxiv search "SERF atomic magnetometer noise" --max-results 5 --download --download-limit 2
+research-agent import-downloads --source arxiv
+research-agent index --reset --max-chars-per-embed 1000
+```
+
+arXiv 下载的 PDF 默认保存在 `downloads_dir/arxiv`。用户手动下载的 PDF 可以放到 `downloads_dir/import`，再运行：
+
+```bash
+research-agent import-downloads --source import
+```
+
+`import-downloads` 会把 PDF 复制到 `papers_dir`，提取文本到 `texts_dir`，并写入 `metadata_dir/papers.sqlite`。导入后需要重新运行 `research-agent index`，文献才会进入本地 RAG。后续会增加增量索引，避免每次全量重建。
 
 ## DeepSeek 复杂综述
 

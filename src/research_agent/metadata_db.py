@@ -18,6 +18,14 @@ PAPER_FIELDS = (
     "notes",
 )
 
+TOPIC_FIELDS = (
+    "name",
+    "description",
+    "keywords_cn",
+    "keywords_en",
+    "notes",
+)
+
 
 def init_db(db_path: Path) -> None:
     path = Path(db_path)
@@ -38,6 +46,20 @@ def init_db(db_path: Path) -> None:
                 text_path TEXT,
                 abstract TEXT,
                 keywords TEXT,
+                notes TEXT,
+                created_at TEXT,
+                updated_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS topics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                keywords_cn TEXT,
+                keywords_en TEXT,
                 notes TEXT,
                 created_at TEXT,
                 updated_at TEXT
@@ -95,6 +117,62 @@ def get_paper_by_text_path(db_path: Path, text_path: str) -> dict | None:
             (text_path,),
         ).fetchone()
         return dict(row) if row else None
+
+
+def create_topic(db_path: Path, topic: dict) -> int:
+    init_db(db_path)
+    name = topic.get("name")
+    if not name:
+        raise ValueError("topic name must not be empty")
+
+    now = datetime.now(timezone.utc).isoformat()
+    values = {field: topic.get(field) for field in TOPIC_FIELDS}
+    fields = (*TOPIC_FIELDS, "created_at", "updated_at")
+    placeholders = ", ".join("?" for _field in fields)
+    params = [values.get(field) for field in TOPIC_FIELDS]
+    params.extend([now, now])
+
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.execute(
+            f"INSERT INTO topics ({', '.join(fields)}) VALUES ({placeholders})",
+            params,
+        )
+        return int(cursor.lastrowid)
+
+
+def list_topics(db_path: Path) -> list[dict]:
+    if not Path(db_path).exists():
+        return []
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT * FROM topics ORDER BY id").fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_topic(db_path: Path, topic_id: int) -> dict | None:
+    if not Path(db_path).exists():
+        return None
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def update_topic(db_path: Path, topic_id: int, updates: dict) -> None:
+    init_db(db_path)
+    allowed_updates = {
+        field: updates[field] for field in TOPIC_FIELDS if field in updates
+    }
+    if not allowed_updates:
+        return
+
+    allowed_updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    assignments = ", ".join(f"{field} = ?" for field in allowed_updates)
+    params = list(allowed_updates.values())
+    params.append(topic_id)
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(f"UPDATE topics SET {assignments} WHERE id = ?", params)
 
 
 def _find_existing_paper(db_path: Path, paper: dict) -> dict | None:
