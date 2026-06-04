@@ -74,6 +74,7 @@ research-agent status
 research-agent ingest
 research-agent import-downloads --source arxiv
 research-agent index --reset --max-chars-per-embed 1000
+research-agent index --incremental --max-chars-per-embed 1000
 research-agent query "你的问题"
 research-agent ask "你的问题"
 research-agent review "你的综述问题"
@@ -134,6 +135,18 @@ python scripts/ingest_pdfs.py
 
 ```bash
 python scripts/build_index.py --reset --limit 1
+```
+
+后续新增或修改 PDF 并重新提取文本后，可以使用增量索引，避免全量重建 Chroma：
+
+```bash
+research-agent index --incremental --max-chars-per-embed 1000
+```
+
+增量索引状态记录在 `metadata_dir/index_state.sqlite`，包含每个 txt 文件的 `sha256`、`chunk_count` 和 `indexed_at`。未变化的 txt 会跳过；修改过的 txt 会先删除旧 chunks，再重新索引。需要忽略状态强制重建选中文件时：
+
+```bash
+research-agent index --incremental --force
 ```
 
 4. 查询索引：
@@ -243,7 +256,7 @@ arXiv 下载的 PDF 默认保存在 `downloads_dir/arxiv`。用户手动下载�
 research-agent import-downloads --source import
 ```
 
-`import-downloads` 会把 PDF 复制到 `papers_dir`，提取文本到 `texts_dir`，并写入 `metadata_dir/papers.sqlite`。导入后需要重新运行 `research-agent index`，文献才会进入本地 RAG。后续会增加增量索引，避免每次全量重建。
+`import-downloads` 会把 PDF 复制到 `papers_dir`，提取文本到 `texts_dir`，并写入 `metadata_dir/papers.sqlite`。导入后需要重新运行 `research-agent index --incremental`，文献才会进入本地 RAG。
 
 ## DeepSeek 复杂综述
 

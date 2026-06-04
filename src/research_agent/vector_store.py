@@ -76,6 +76,11 @@ class VectorStore:
     def count(self) -> int:
         return self.collection.count()
 
+    def delete_doc(self, doc_id: str) -> None:
+        if not doc_id:
+            raise ValueError("doc_id must not be empty")
+        self.collection.delete(where={"doc_id": doc_id})
+
     def reset_collection(self, confirm: bool = False) -> None:
         if confirm is not True:
             raise ValueError("reset_collection requires confirm=True")

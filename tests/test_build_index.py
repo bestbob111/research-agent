@@ -39,6 +39,7 @@ class NanEmbeddingOllamaClient:
 def test_build_index_processes_one_text_file(tmp_path, monkeypatch):
     texts_dir = tmp_path / "texts"
     chroma_dir = tmp_path / "chroma"
+    metadata_dir = tmp_path / "metadata"
     texts_dir.mkdir()
     (texts_dir / "paper.txt").write_text("第一段内容。\n\nSecond paragraph.", encoding="utf-8")
     monkeypatch.setattr(indexer, "OllamaClient", FakeOllamaClient)
@@ -46,6 +47,7 @@ def test_build_index_processes_one_text_file(tmp_path, monkeypatch):
     config = {
         "texts_dir": str(texts_dir),
         "chroma_dir": str(chroma_dir),
+        "metadata_dir": str(metadata_dir),
         "collection_name": "test_collection",
         "chunk_size": 1200,
         "chunk_overlap": 200,
@@ -60,6 +62,7 @@ def test_build_index_processes_one_text_file(tmp_path, monkeypatch):
     assert result["written_chunks"] == 1
     assert result["collection_count"] == 1
     assert result["skipped_empty_files"] == 0
+    assert result["skipped_unchanged_files"] == 0
     assert result["failed_files"] == []
     assert result["failed_chunks"] == []
 
@@ -67,6 +70,7 @@ def test_build_index_processes_one_text_file(tmp_path, monkeypatch):
 def test_build_index_skips_empty_text_file(tmp_path, monkeypatch):
     texts_dir = tmp_path / "texts"
     chroma_dir = tmp_path / "chroma"
+    metadata_dir = tmp_path / "metadata"
     texts_dir.mkdir()
     (texts_dir / "empty.txt").write_text("   \n", encoding="utf-8")
     monkeypatch.setattr(indexer, "OllamaClient", FakeOllamaClient)
@@ -74,6 +78,7 @@ def test_build_index_skips_empty_text_file(tmp_path, monkeypatch):
     config = {
         "texts_dir": str(texts_dir),
         "chroma_dir": str(chroma_dir),
+        "metadata_dir": str(metadata_dir),
         "collection_name": "test_collection_empty",
         "chunk_size": 1200,
         "chunk_overlap": 200,
@@ -93,6 +98,7 @@ def test_build_index_skips_empty_text_file(tmp_path, monkeypatch):
 def test_build_index_continues_when_one_chunk_embed_fails(tmp_path, monkeypatch):
     texts_dir = tmp_path / "texts"
     chroma_dir = tmp_path / "chroma"
+    metadata_dir = tmp_path / "metadata"
     texts_dir.mkdir()
     (texts_dir / "paper.txt").write_text(
         "good\n\nFAIL\n\nalso good",
@@ -103,6 +109,7 @@ def test_build_index_continues_when_one_chunk_embed_fails(tmp_path, monkeypatch)
     config = {
         "texts_dir": str(texts_dir),
         "chroma_dir": str(chroma_dir),
+        "metadata_dir": str(metadata_dir),
         "collection_name": "test_collection_partial_failure",
         "chunk_size": 10,
         "chunk_overlap": 0,
@@ -124,6 +131,7 @@ def test_build_index_continues_when_one_chunk_embed_fails(tmp_path, monkeypatch)
 def test_build_index_skips_nan_embedding_and_writes_valid_chunks(tmp_path, monkeypatch):
     texts_dir = tmp_path / "texts"
     chroma_dir = tmp_path / "chroma"
+    metadata_dir = tmp_path / "metadata"
     texts_dir.mkdir()
     (texts_dir / "paper.txt").write_text(
         "GOOD\n\nBAD\n\nALSO GOOD",
@@ -134,6 +142,7 @@ def test_build_index_skips_nan_embedding_and_writes_valid_chunks(tmp_path, monke
     config = {
         "texts_dir": str(texts_dir),
         "chroma_dir": str(chroma_dir),
+        "metadata_dir": str(metadata_dir),
         "collection_name": "test_collection_nan_embedding",
         "chunk_size": 10,
         "chunk_overlap": 0,
@@ -150,3 +159,119 @@ def test_build_index_skips_nan_embedding_and_writes_valid_chunks(tmp_path, monke
     assert len(result["failed_chunks"]) == 1
     assert result["failed_chunks"][0]["source"] == "paper.txt"
     assert "invalid embedding" in result["failed_chunks"][0]["error"]
+
+
+def test_incremental_index_skips_unchanged_text_file(tmp_path, monkeypatch):
+    texts_dir = tmp_path / "texts"
+    chroma_dir = tmp_path / "chroma"
+    metadata_dir = tmp_path / "metadata"
+    texts_dir.mkdir()
+    (texts_dir / "paper.txt").write_text("content", encoding="utf-8")
+    monkeypatch.setattr(indexer, "OllamaClient", FakeOllamaClient)
+    config = {
+        "texts_dir": str(texts_dir),
+        "chroma_dir": str(chroma_dir),
+        "metadata_dir": str(metadata_dir),
+        "collection_name": "test_collection_incremental_skip",
+        "chunk_size": 1200,
+        "chunk_overlap": 200,
+        "ollama_base_url": "http://localhost:11434",
+        "chat_model": "qwen3:14b",
+        "embedding_model": "bge-m3",
+    }
+
+    first = build_index(config, reset=True, incremental=True)
+    second = build_index(config, incremental=True)
+
+    assert first["processed_files"] == 1
+    assert second["processed_files"] == 0
+    assert second["written_chunks"] == 0
+    assert second["skipped_unchanged_files"] == 1
+    assert second["collection_count"] == 1
+
+
+def test_incremental_index_reindexes_changed_text_file(tmp_path, monkeypatch):
+    texts_dir = tmp_path / "texts"
+    chroma_dir = tmp_path / "chroma"
+    metadata_dir = tmp_path / "metadata"
+    texts_dir.mkdir()
+    text_path = texts_dir / "paper.txt"
+    text_path.write_text("one chunk", encoding="utf-8")
+    monkeypatch.setattr(indexer, "OllamaClient", FakeOllamaClient)
+    config = {
+        "texts_dir": str(texts_dir),
+        "chroma_dir": str(chroma_dir),
+        "metadata_dir": str(metadata_dir),
+        "collection_name": "test_collection_incremental_changed",
+        "chunk_size": 1200,
+        "chunk_overlap": 200,
+        "ollama_base_url": "http://localhost:11434",
+        "chat_model": "qwen3:14b",
+        "embedding_model": "bge-m3",
+    }
+
+    build_index(config, reset=True, incremental=True)
+    text_path.write_text("changed\n\nsecond chunk", encoding="utf-8")
+    result = build_index(config, incremental=True)
+
+    assert result["processed_files"] == 1
+    assert result["written_chunks"] == 1
+    assert result["skipped_unchanged_files"] == 0
+    assert result["collection_count"] == 1
+
+
+def test_force_reindexes_unchanged_text_file(tmp_path, monkeypatch):
+    texts_dir = tmp_path / "texts"
+    chroma_dir = tmp_path / "chroma"
+    metadata_dir = tmp_path / "metadata"
+    texts_dir.mkdir()
+    (texts_dir / "paper.txt").write_text("content", encoding="utf-8")
+    monkeypatch.setattr(indexer, "OllamaClient", FakeOllamaClient)
+    config = {
+        "texts_dir": str(texts_dir),
+        "chroma_dir": str(chroma_dir),
+        "metadata_dir": str(metadata_dir),
+        "collection_name": "test_collection_force",
+        "chunk_size": 1200,
+        "chunk_overlap": 200,
+        "ollama_base_url": "http://localhost:11434",
+        "chat_model": "qwen3:14b",
+        "embedding_model": "bge-m3",
+    }
+
+    build_index(config, reset=True, incremental=True)
+    result = build_index(config, incremental=True, force=True)
+
+    assert result["processed_files"] == 1
+    assert result["written_chunks"] == 1
+    assert result["skipped_unchanged_files"] == 0
+    assert result["collection_count"] == 1
+
+
+def test_incremental_without_state_replaces_existing_doc_chunks(tmp_path, monkeypatch):
+    texts_dir = tmp_path / "texts"
+    chroma_dir = tmp_path / "chroma"
+    metadata_dir = tmp_path / "metadata"
+    texts_dir.mkdir()
+    (texts_dir / "paper.txt").write_text("content", encoding="utf-8")
+    monkeypatch.setattr(indexer, "OllamaClient", FakeOllamaClient)
+    config = {
+        "texts_dir": str(texts_dir),
+        "chroma_dir": str(chroma_dir),
+        "metadata_dir": str(metadata_dir),
+        "collection_name": "test_collection_incremental_no_state",
+        "chunk_size": 1200,
+        "chunk_overlap": 200,
+        "ollama_base_url": "http://localhost:11434",
+        "chat_model": "qwen3:14b",
+        "embedding_model": "bge-m3",
+    }
+
+    build_index(config, reset=True)
+    (metadata_dir / "index_state.sqlite").unlink()
+    result = build_index(config, incremental=True)
+
+    assert result["processed_files"] == 1
+    assert result["written_chunks"] == 1
+    assert result["collection_count"] == 1
+    assert result["failed_files"] == []

@@ -34,9 +34,11 @@ def test_cli_status_runs_with_mocked_config(tmp_path, monkeypatch, capsys):
     (papers_dir / "a.pdf").write_bytes(b"%PDF")
     (texts_dir / "a.txt").write_text("text", encoding="utf-8")
     (metadata_dir / "papers.sqlite").write_text("", encoding="utf-8")
+    (metadata_dir / "index_state.sqlite").write_text("", encoding="utf-8")
 
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     monkeypatch.setattr(cli, "VectorStore", FakeVectorStore)
+    monkeypatch.setattr(cli, "count_indexed_files", lambda db_path: 5)
     monkeypatch.setattr(
         cli,
         "load_config",
@@ -57,8 +59,55 @@ def test_cli_status_runs_with_mocked_config(tmp_path, monkeypatch, capsys):
     assert "pdf_count: 1" in output
     assert "txt_count: 1" in output
     assert "metadata_db_exists: yes" in output
+    assert "indexed_files: 5" in output
     assert "deepseek_api_key_configured: yes" in output
     assert "chroma_collection_count: 7" in output
+
+
+def test_cli_index_parses_incremental_and_force(monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr(
+        cli,
+        "load_config",
+        lambda: {
+            "texts_dir": "/tmp/texts",
+            "chroma_dir": "/tmp/chroma",
+            "collection_name": "test_collection",
+            "metadata_dir": "/tmp/metadata",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "build_index",
+        lambda config, reset=False, limit=None, max_chars_per_embed=1800, incremental=False, force=False: calls.append(
+            (reset, limit, max_chars_per_embed, incremental, force)
+        )
+        or {
+            "processed_files": 1,
+            "written_chunks": 2,
+            "collection_count": 2,
+            "skipped_empty_files": 0,
+            "skipped_unchanged_files": 3,
+            "failed_files": [],
+            "failed_chunks": [],
+        },
+    )
+
+    cli.main(
+        [
+            "index",
+            "--incremental",
+            "--force",
+            "--limit",
+            "5",
+            "--max-chars-per-embed",
+            "1000",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert "skipped unchanged files: 3" in output
+    assert calls == [(False, 5, 1000, True, True)]
 
 
 def test_cli_missing_required_argument_returns_error():

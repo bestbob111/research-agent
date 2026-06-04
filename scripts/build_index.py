@@ -15,6 +15,16 @@ from research_agent.indexer import build_index
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build ChromaDB index from text files.")
     parser.add_argument("--reset", action="store_true", help="Recreate the collection.")
+    parser.add_argument(
+        "--incremental",
+        action="store_true",
+        help="Only index new or changed txt files.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-index selected txt files even if unchanged.",
+    )
     parser.add_argument("--limit", type=int, default=None, help="Only process first N txt files.")
     parser.add_argument(
         "--max-chars-per-embed",
@@ -42,12 +52,15 @@ def main() -> None:
         reset=args.reset,
         limit=args.limit,
         max_chars_per_embed=args.max_chars_per_embed,
+        incremental=args.incremental,
+        force=args.force,
     )
 
     print(f"processed txt: {result['processed_files']}")
     print(f"written chunks: {result['written_chunks']}")
     print(f"collection count: {result['collection_count']}")
     print(f"skipped empty files: {result['skipped_empty_files']}")
+    print(f"skipped unchanged files: {result['skipped_unchanged_files']}")
     print(f"failed files: {len(result['failed_files'])}")
     print(f"failed chunks: {len(result['failed_chunks'])}")
 

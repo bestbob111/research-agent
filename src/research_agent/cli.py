@@ -20,6 +20,7 @@ from research_agent.explorer import (
     load_exploration,
 )
 from research_agent.history import append_jsonl
+from research_agent.index_state import count_indexed_files
 from research_agent.indexer import build_index
 from research_agent.ingest_metadata import record_ingested_metadata
 from research_agent.metadata_db import init_db, list_papers
@@ -64,6 +65,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     index_parser = subparsers.add_parser("index")
     index_parser.add_argument("--reset", action="store_true")
+    index_parser.add_argument("--incremental", action="store_true")
+    index_parser.add_argument("--force", action="store_true")
     index_parser.add_argument("--limit", type=int, default=None)
     index_parser.add_argument("--max-chars-per-embed", type=int, default=1800)
     index_parser.set_defaults(func=cmd_index)
@@ -164,9 +167,11 @@ def cmd_status(_args: argparse.Namespace) -> None:
     papers_dir = Path(config["papers_dir"])
     texts_dir = Path(config["texts_dir"])
     metadata_db = Path(config["metadata_dir"]) / "papers.sqlite"
+    index_state_db = Path(config["metadata_dir"]) / "index_state.sqlite"
     print(f"pdf_count: {_count_files(papers_dir, '*.pdf')}")
     print(f"txt_count: {_count_files(texts_dir, '*.txt')}")
     print(f"metadata_db_exists: {'yes' if metadata_db.exists() else 'no'}")
+    print(f"indexed_files: {count_indexed_files(index_state_db)}")
     print(f"deepseek_api_key_configured: {'yes' if os.getenv('DEEPSEEK_API_KEY') else 'no'}")
 
     try:
@@ -240,6 +245,8 @@ def cmd_index(args: argparse.Namespace) -> None:
         reset=args.reset,
         limit=args.limit,
         max_chars_per_embed=args.max_chars_per_embed,
+        incremental=args.incremental,
+        force=args.force,
     )
     _print_index_result(config, result)
 
@@ -622,6 +629,7 @@ def _print_index_result(config: dict, result: dict) -> None:
     print(f"written chunks: {result['written_chunks']}")
     print(f"collection count: {result['collection_count']}")
     print(f"skipped empty files: {result['skipped_empty_files']}")
+    print(f"skipped unchanged files: {result['skipped_unchanged_files']}")
     print(f"failed files: {len(result['failed_files'])}")
     print(f"failed chunks: {len(result['failed_chunks'])}")
 

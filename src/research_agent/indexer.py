@@ -3,6 +3,13 @@ from pathlib import Path
 from typing import Any
 
 from research_agent.chunking import chunk_text
+from research_agent.index_state import (
+    calculate_sha256,
+    clear_index_state,
+    delete_indexed_file,
+    get_indexed_file,
+    upsert_indexed_file,
+)
 from research_agent.ollama_client import OllamaClient
 from research_agent.text_cleaner import prepare_text_for_embedding
 from research_agent.vector_store import VectorStore
@@ -13,14 +20,18 @@ def build_index(
     reset: bool = False,
     limit: int | None = None,
     max_chars_per_embed: int = 1800,
+    incremental: bool = False,
+    force: bool = False,
 ) -> dict:
     texts_dir = Path(config["texts_dir"])
+    state_db_path = Path(config["metadata_dir"]) / "index_state.sqlite"
     vector_store = VectorStore(
         chroma_dir=config["chroma_dir"],
         collection_name=config["collection_name"],
     )
     if reset:
         vector_store.reset_collection(confirm=True)
+        clear_index_state(state_db_path)
 
     text_files = sorted(texts_dir.glob("*.txt")) if texts_dir.exists() else []
     if limit is not None:
@@ -35,11 +46,28 @@ def build_index(
     processed_files = 0
     written_chunks = 0
     skipped_empty_files = 0
+    skipped_unchanged_files = 0
     failed_files = []
     failed_chunks = []
 
     for text_path in text_files:
         print(f"indexing txt: {text_path.name}")
+        text_path_key = str(text_path.resolve())
+        file_sha256 = calculate_sha256(text_path)
+        state = get_indexed_file(state_db_path, text_path_key)
+        should_delete_existing = force or incremental
+
+        if incremental and state and state.get("sha256") == file_sha256 and not force:
+            skipped_unchanged_files += 1
+            print(f"skip unchanged txt: {text_path.name}")
+            continue
+
+        if should_delete_existing:
+            vector_store.delete_doc(text_path.stem)
+            delete_indexed_file(state_db_path, text_path_key)
+            if state:
+                print(f"removed old chunks: {text_path.name}")
+
         try:
             text = text_path.read_text(encoding="utf-8")
             if not text.strip():
@@ -123,6 +151,12 @@ def build_index(
             )
             written_chunks += written
             processed_files += 1
+            upsert_indexed_file(
+                state_db_path,
+                text_path_key,
+                file_sha256,
+                written,
+            )
             print(f"cumulative written chunks: {written_chunks}")
         except Exception as exc:
             error = str(exc)
@@ -134,6 +168,7 @@ def build_index(
         "written_chunks": written_chunks,
         "collection_count": vector_store.count(),
         "skipped_empty_files": skipped_empty_files,
+        "skipped_unchanged_files": skipped_unchanged_files,
         "failed_files": failed_files,
         "failed_chunks": failed_chunks,
     }
